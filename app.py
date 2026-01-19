@@ -1027,17 +1027,30 @@ def index():
         if freq:
             days_since = get_days_since(plant['last_watered'])
 
-            # Determine status
+            # Determine status and time remaining
+            days_until_next_watering = freq - days_since
+
             if days_since >= freq:
                 status = 'overdue'
-                status_text = f'Overdue by {days_since - freq} day(s)'
-            elif days_since == freq - 1:
+                days_overdue = days_since - freq
+                if days_overdue == 0:
+                    status_text = 'Water Today (Due)'
+                elif days_overdue == 1:
+                    status_text = 'Overdue by 1 day'
+                else:
+                    status_text = f'Overdue by {days_overdue} days'
+            elif days_until_next_watering == 1:
                 status = 'today'
                 status_text = 'Water Today'
+            elif days_until_next_watering == 0:
+                status = 'today'
+                status_text = 'Water Today (Due Now)'
             else:
-                days_until = freq - days_since
                 status = 'upcoming'
-                status_text = f'In {days_until} day(s)'
+                if days_until_next_watering == 1:
+                    status_text = 'Water in 1 day'
+                else:
+                    status_text = f'Water in {days_until_next_watering} days'
 
             # Get icon
             plant_type_lower = (plant['type'] or '').lower()
