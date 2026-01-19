@@ -590,7 +590,7 @@ HTML_TEMPLATE = '''
                         {% endif %}
                         <div class="plant-detail">💧 Last watered: {{ plant.days_ago }}</div>
                         {% if plant.watering_frequency %}
-                        <div class="plant-detail">Water: {{ plant.watering_frequency }}</div>
+                        <div class="plant-detail">🔄 Watering frequency: {{ plant.watering_frequency }}</div>
                         {% endif %}
                     </div>
                     
