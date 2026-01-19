@@ -2,9 +2,11 @@ from flask import Flask, render_template_string, request, jsonify, redirect, url
 import sqlite3
 from datetime import datetime, date
 import os
+import requests
 
 app = Flask(__name__)
 app.config['DATABASE'] = os.environ.get('DATABASE_PATH', 'garden.db')
+app.config['PERENUAL_API_KEY'] = os.environ.get('PERENUAL_API_KEY', '')
 
 # HTML Template
 HTML_TEMPLATE = '''
@@ -585,6 +587,9 @@ HTML_TEMPLATE = '''
                         {% if plant.location %}
                         <div class="plant-detail">📍 {{ plant.location }}</div>
                         {% endif %}
+                        {% if plant.scientific_name %}
+                        <div class="plant-detail" style="font-style: italic; color: #6b7280;">🔬 {{ plant.scientific_name }}</div>
+                        {% endif %}
                         {% if plant.planted_date %}
                         <div class="plant-detail">📅 Planted: {{ plant.planted_date }}</div>
                         {% endif %}
@@ -592,8 +597,17 @@ HTML_TEMPLATE = '''
                         {% if plant.watering_frequency %}
                         <div class="plant-detail">🔄 Watering frequency: {{ plant.watering_frequency }}</div>
                         {% endif %}
+                        {% if plant.sunlight %}
+                        <div class="plant-detail">☀️ Sunlight: {{ plant.sunlight }}</div>
+                        {% endif %}
+                        {% if plant.cycle %}
+                        <div class="plant-detail">🔄 Cycle: {{ plant.cycle }}</div>
+                        {% endif %}
+                        {% if plant.hardiness_zones %}
+                        <div class="plant-detail">🌡️ Zone: {{ plant.hardiness_zones }}</div>
+                        {% endif %}
                     </div>
-                    
+
                     <button class="btn btn-water" onclick="waterPlant({{ plant.id }})">💧 Water Now</button>
                 </div>
                 {% endfor %}
@@ -650,8 +664,19 @@ HTML_TEMPLATE = '''
                 </div>
                 <div class="form-group">
                     <label>Plant Name *</label>
-                    <input type="text" name="name" required>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" name="name" id="plantName" required style="flex: 1;">
+                        <button type="button" class="btn" onclick="openPlantLookup()" style="width: auto; background: #8b5cf6;">🔍 Lookup</button>
+                    </div>
+                    <div id="plantSearchResults" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 8px; background: white;"></div>
                 </div>
+                <input type="hidden" name="scientific_name" id="scientificName">
+                <input type="hidden" name="sunlight" id="sunlight">
+                <input type="hidden" name="watering_needs" id="wateringNeeds">
+                <input type="hidden" name="cycle" id="cycle">
+                <input type="hidden" name="hardiness_zones" id="hardinessZones">
+                <input type="hidden" name="description" id="description">
+                <input type="hidden" name="perenual_id" id="perenualId">
                 <div class="form-group">
                     <label>Mark Planting Area (drag on the bed map)</label>
                     <div class="planting-map-container">
@@ -1033,6 +1058,88 @@ HTML_TEMPLATE = '''
         // Refresh weather every 10 minutes
         setInterval(fetchWeather, 600000);
 
+        // Plant lookup functionality
+        async function openPlantLookup() {
+            const plantName = document.getElementById('plantName').value;
+            if (!plantName) {
+                alert('Please enter a plant name first');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('plantSearchResults');
+            resultsDiv.innerHTML = '<div style="padding: 15px; text-align: center;">🔍 Searching...</div>';
+            resultsDiv.style.display = 'block';
+
+            try {
+                const response = await fetch(`/api/plants/search?q=${encodeURIComponent(plantName)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    resultsDiv.innerHTML = `<div style="padding: 15px; color: #ef4444;">${data.error}</div>`;
+                    return;
+                }
+
+                if (!data.results || data.results.length === 0) {
+                    resultsDiv.innerHTML = '<div style="padding: 15px;">No plants found. Try a different search term.</div>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = data.results.map(plant => `
+                    <div class="plant-search-result" onclick="selectPlant(${plant.id})" style="padding: 12px; border-bottom: 1px solid #e5e7eb; cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                        ${plant.image ? `<img src="${plant.image}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">` : '<div style="width: 50px; height: 50px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center;">🌱</div>'}
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #16a34a;">${plant.common_name}</div>
+                            ${plant.scientific_name ? `<div style="font-size: 0.85em; color: #6b7280; font-style: italic;">${plant.scientific_name}</div>` : ''}
+                            <div style="font-size: 0.85em; color: #6b7280; margin-top: 4px;">
+                                ${plant.sunlight ? `☀️ ${plant.sunlight}` : ''}
+                                ${plant.watering ? `💧 ${plant.watering}` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                resultsDiv.innerHTML = `<div style="padding: 15px; color: #ef4444;">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function selectPlant(perenualId) {
+            const resultsDiv = document.getElementById('plantSearchResults');
+            resultsDiv.innerHTML = '<div style="padding: 15px; text-align: center;">Loading plant details...</div>';
+
+            try {
+                const response = await fetch(`/api/plants/details/${perenualId}`);
+                const details = await response.json();
+
+                if (details.error) {
+                    alert(details.error);
+                    resultsDiv.style.display = 'none';
+                    return;
+                }
+
+                // Populate hidden fields with metadata
+                document.getElementById('scientificName').value = details.scientific_name || '';
+                document.getElementById('sunlight').value = details.sunlight || '';
+                document.getElementById('wateringNeeds').value = details.watering_needs || '';
+                document.getElementById('cycle').value = details.cycle || '';
+                document.getElementById('hardinessZones').value = details.hardiness_zones || '';
+                document.getElementById('description').value = details.description || '';
+                document.getElementById('perenualId').value = details.perenual_id || '';
+
+                // Update form field hints
+                if (details.watering_needs && !document.querySelector('input[name="watering_frequency"]').value) {
+                    document.querySelector('input[name="watering_frequency"]').value = details.watering_needs;
+                }
+
+                resultsDiv.innerHTML = '<div style="padding: 15px; background: #dcfce7; color: #16a34a; border-radius: 8px;">✅ Plant details loaded! Metadata will be saved with your plant.</div>';
+                setTimeout(() => {
+                    resultsDiv.style.display = 'none';
+                }, 3000);
+            } catch (error) {
+                alert(`Error loading plant details: ${error.message}`);
+                resultsDiv.style.display = 'none';
+            }
+        }
+
         // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('addPlantModal');
@@ -1247,8 +1354,9 @@ def add_plant():
     data = request.json
     conn = get_db()
     conn.execute('''
-        INSERT INTO plants (name, type, planted_date, location, watering_frequency, last_watered, bed_row, bed_col, planting_area)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO plants (name, type, planted_date, location, watering_frequency, last_watered, bed_row, bed_col, planting_area,
+                           scientific_name, sunlight, watering_needs, cycle, hardiness_zones, description, perenual_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('name'),
         data.get('type'),
@@ -1258,7 +1366,14 @@ def add_plant():
         str(date.today()),
         data.get('bed_row'),
         data.get('bed_col'),
-        data.get('planting_area')
+        data.get('planting_area'),
+        data.get('scientific_name'),
+        data.get('sunlight'),
+        data.get('watering_needs'),
+        data.get('cycle'),
+        data.get('hardiness_zones'),
+        data.get('description'),
+        data.get('perenual_id')
     ))
     conn.commit()
     conn.close()
@@ -1293,7 +1408,9 @@ def update_plant(plant_id):
     conn.execute('''
         UPDATE plants
         SET name = ?, type = ?, planted_date = ?, location = ?,
-            watering_frequency = ?, bed_row = ?, bed_col = ?, planting_area = ?
+            watering_frequency = ?, bed_row = ?, bed_col = ?, planting_area = ?,
+            scientific_name = ?, sunlight = ?, watering_needs = ?, cycle = ?,
+            hardiness_zones = ?, description = ?, perenual_id = ?
         WHERE id = ?
     ''', (
         data.get('name'),
@@ -1304,6 +1421,13 @@ def update_plant(plant_id):
         data.get('bed_row'),
         data.get('bed_col'),
         data.get('planting_area'),
+        data.get('scientific_name'),
+        data.get('sunlight'),
+        data.get('watering_needs'),
+        data.get('cycle'),
+        data.get('hardiness_zones'),
+        data.get('description'),
+        data.get('perenual_id'),
         plant_id
     ))
     conn.commit()
@@ -1318,6 +1442,74 @@ def delete_plant(plant_id):
     conn.commit()
     conn.close()
     return jsonify({'success': True})
+
+@app.route('/api/plants/search', methods=['GET'])
+def search_plants():
+    """Search for plants using Perenual API"""
+    query = request.args.get('q', '')
+    if not query:
+        return jsonify({'error': 'Query parameter required'}), 400
+
+    api_key = app.config['PERENUAL_API_KEY']
+    if not api_key:
+        return jsonify({'error': 'API key not configured'}), 500
+
+    try:
+        response = requests.get(
+            f'https://perenual.com/api/species-list',
+            params={'key': api_key, 'q': query},
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Format results for easier frontend consumption
+        results = []
+        for plant in data.get('data', [])[:10]:  # Limit to 10 results
+            results.append({
+                'id': plant.get('id'),
+                'common_name': plant.get('common_name'),
+                'scientific_name': plant.get('scientific_name', [''])[0] if plant.get('scientific_name') else '',
+                'sunlight': ', '.join(plant.get('sunlight', [])) if plant.get('sunlight') else None,
+                'watering': plant.get('watering'),
+                'cycle': plant.get('cycle'),
+                'image': plant.get('default_image', {}).get('thumbnail') if plant.get('default_image') else None
+            })
+
+        return jsonify({'results': results})
+    except requests.RequestException as e:
+        return jsonify({'error': f'Failed to fetch plant data: {str(e)}'}), 500
+
+@app.route('/api/plants/details/<int:perenual_id>', methods=['GET'])
+def get_plant_details(perenual_id):
+    """Get detailed plant information from Perenual API"""
+    api_key = app.config['PERENUAL_API_KEY']
+    if not api_key:
+        return jsonify({'error': 'API key not configured'}), 500
+
+    try:
+        response = requests.get(
+            f'https://perenual.com/api/species/details/{perenual_id}',
+            params={'key': api_key},
+            timeout=10
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Extract relevant metadata
+        details = {
+            'perenual_id': data.get('id'),
+            'scientific_name': data.get('scientific_name', [''])[0] if data.get('scientific_name') else '',
+            'sunlight': ', '.join(data.get('sunlight', [])) if data.get('sunlight') else None,
+            'watering_needs': data.get('watering'),
+            'cycle': data.get('cycle'),
+            'hardiness_zones': data.get('hardiness', {}).get('min') if data.get('hardiness') else None,
+            'description': data.get('description')
+        }
+
+        return jsonify(details)
+    except requests.RequestException as e:
+        return jsonify({'error': f'Failed to fetch plant details: {str(e)}'}), 500
 
 if __name__ == '__main__':
     init_db()

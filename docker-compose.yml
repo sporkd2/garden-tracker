@@ -11,4 +11,5 @@ services:
     environment:
       - DATABASE_PATH=/app/data/garden.db
       - PORT=8000
+      - PERENUAL_API_KEY=sk-iLPf696e73541926614416
     restart: unless-stopped
