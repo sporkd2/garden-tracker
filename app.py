@@ -430,6 +430,72 @@ HTML_TEMPLATE = '''
             background: #dbeafe;
             color: #2563eb;
         }
+        .weather-widget {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(96, 165, 250, 0.95) 100%);
+            border-radius: 16px;
+            padding: 20px;
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+        }
+        .weather-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .weather-location {
+            font-size: 1.1em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .weather-main {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .weather-temp {
+            font-size: 3em;
+            font-weight: bold;
+            line-height: 1;
+        }
+        .weather-icon {
+            font-size: 4em;
+            line-height: 1;
+        }
+        .weather-description {
+            font-size: 1.2em;
+            text-transform: capitalize;
+            margin-top: 5px;
+        }
+        .weather-details {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .weather-detail-item {
+            text-align: center;
+        }
+        .weather-detail-label {
+            font-size: 0.85em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        .weather-detail-value {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        .weather-loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 1.1em;
+        }
     </style>
 </head>
 <body>
@@ -437,6 +503,11 @@ HTML_TEMPLATE = '''
         <div class="header">
             <h1>🌱 My Garden</h1>
             <button class="btn" onclick="openModal()">+ Add Plant</button>
+        </div>
+
+        <!-- Weather Widget -->
+        <div class="weather-widget" id="weatherWidget">
+            <div class="weather-loading">🌤️ Loading weather for Swansboro, NC...</div>
         </div>
 
         <!-- Tab Navigation -->
@@ -868,6 +939,99 @@ HTML_TEMPLATE = '''
                 document.querySelectorAll('.tab')[1].classList.add('active');
             }
         }
+
+        // Weather functionality
+        async function fetchWeather() {
+            try {
+                // Using Open-Meteo free weather API (no API key needed)
+                // Coordinates for Swansboro, NC
+                const lat = 34.6876;
+                const lon = -77.1192;
+
+                const response = await fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York`
+                );
+
+                const data = await response.json();
+                const current = data.current;
+
+                // Weather code to emoji and description mapping
+                const weatherCodeMap = {
+                    0: { emoji: '☀️', desc: 'Clear sky' },
+                    1: { emoji: '🌤️', desc: 'Mainly clear' },
+                    2: { emoji: '⛅', desc: 'Partly cloudy' },
+                    3: { emoji: '☁️', desc: 'Overcast' },
+                    45: { emoji: '🌫️', desc: 'Foggy' },
+                    48: { emoji: '🌫️', desc: 'Foggy' },
+                    51: { emoji: '🌦️', desc: 'Light drizzle' },
+                    53: { emoji: '🌦️', desc: 'Moderate drizzle' },
+                    55: { emoji: '🌧️', desc: 'Heavy drizzle' },
+                    61: { emoji: '🌧️', desc: 'Light rain' },
+                    63: { emoji: '🌧️', desc: 'Moderate rain' },
+                    65: { emoji: '🌧️', desc: 'Heavy rain' },
+                    71: { emoji: '🌨️', desc: 'Light snow' },
+                    73: { emoji: '🌨️', desc: 'Moderate snow' },
+                    75: { emoji: '🌨️', desc: 'Heavy snow' },
+                    77: { emoji: '🌨️', desc: 'Snow grains' },
+                    80: { emoji: '🌦️', desc: 'Light showers' },
+                    81: { emoji: '🌧️', desc: 'Moderate showers' },
+                    82: { emoji: '🌧️', desc: 'Heavy showers' },
+                    85: { emoji: '🌨️', desc: 'Light snow showers' },
+                    86: { emoji: '🌨️', desc: 'Heavy snow showers' },
+                    95: { emoji: '⛈️', desc: 'Thunderstorm' },
+                    96: { emoji: '⛈️', desc: 'Thunderstorm with hail' },
+                    99: { emoji: '⛈️', desc: 'Thunderstorm with hail' }
+                };
+
+                const weather = weatherCodeMap[current.weather_code] || { emoji: '🌤️', desc: 'Unknown' };
+
+                document.getElementById('weatherWidget').innerHTML = `
+                    <div class="weather-header">
+                        <div class="weather-location">
+                            📍 Swansboro, NC
+                        </div>
+                        <div style="font-size: 0.9em; opacity: 0.9;">
+                            ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </div>
+                    </div>
+                    <div class="weather-main">
+                        <div>
+                            <div class="weather-temp">${Math.round(current.temperature_2m)}°F</div>
+                            <div class="weather-description">${weather.desc}</div>
+                            <div style="font-size: 0.9em; opacity: 0.9; margin-top: 5px;">
+                                Feels like ${Math.round(current.apparent_temperature)}°F
+                            </div>
+                        </div>
+                        <div class="weather-icon">${weather.emoji}</div>
+                    </div>
+                    <div class="weather-details">
+                        <div class="weather-detail-item">
+                            <div class="weather-detail-label">💧 Humidity</div>
+                            <div class="weather-detail-value">${current.relative_humidity_2m}%</div>
+                        </div>
+                        <div class="weather-detail-item">
+                            <div class="weather-detail-label">💨 Wind</div>
+                            <div class="weather-detail-value">${Math.round(current.wind_speed_10m)} mph</div>
+                        </div>
+                        <div class="weather-detail-item">
+                            <div class="weather-detail-label">🌧️ Rain</div>
+                            <div class="weather-detail-value">${current.precipitation}" /hr</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Weather fetch error:', error);
+                document.getElementById('weatherWidget').innerHTML = `
+                    <div class="weather-loading">⚠️ Unable to load weather data</div>
+                `;
+            }
+        }
+
+        // Fetch weather on page load
+        fetchWeather();
+
+        // Refresh weather every 10 minutes
+        setInterval(fetchWeather, 600000);
 
         // Close modal when clicking outside
         window.onclick = function(event) {
