@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  garden-tracker:
+    build: .
+    container_name: garden-tracker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/garden.db
+      - PORT=8000
+    restart: unless-stopped
