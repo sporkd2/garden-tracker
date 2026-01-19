@@ -498,13 +498,22 @@ HTML_TEMPLATE = '''
             padding: 20px;
             font-size: 1.1em;
         }
+        .plant-metadata-scientific-name.hidden,
+        .plant-metadata-sunlight.hidden,
+        .plant-metadata-cycle.hidden,
+        .plant-metadata-hardiness.hidden {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🌱 My Garden</h1>
-            <button class="btn" onclick="openModal()">+ Add Plant</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="openSettingsModal()" style="background: #6b7280;">⚙️ Settings</button>
+                <button class="btn" onclick="openModal()">+ Add Plant</button>
+            </div>
         </div>
 
         <!-- Weather Widget -->
@@ -588,7 +597,7 @@ HTML_TEMPLATE = '''
                         <div class="plant-detail">📍 {{ plant.location }}</div>
                         {% endif %}
                         {% if plant.scientific_name %}
-                        <div class="plant-detail" style="font-style: italic; color: #6b7280;">🔬 {{ plant.scientific_name }}</div>
+                        <div class="plant-detail plant-metadata-scientific-name" style="font-style: italic; color: #6b7280;">🔬 {{ plant.scientific_name }}</div>
                         {% endif %}
                         {% if plant.planted_date %}
                         <div class="plant-detail">📅 Planted: {{ plant.planted_date }}</div>
@@ -598,13 +607,13 @@ HTML_TEMPLATE = '''
                         <div class="plant-detail">🔄 Watering frequency: {{ plant.watering_frequency }}</div>
                         {% endif %}
                         {% if plant.sunlight %}
-                        <div class="plant-detail">☀️ Sunlight: {{ plant.sunlight }}</div>
+                        <div class="plant-detail plant-metadata-sunlight">☀️ Sunlight: {{ plant.sunlight }}</div>
                         {% endif %}
                         {% if plant.cycle %}
-                        <div class="plant-detail">🔄 Cycle: {{ plant.cycle }}</div>
+                        <div class="plant-detail plant-metadata-cycle">🔄 Cycle: {{ plant.cycle }}</div>
                         {% endif %}
                         {% if plant.hardiness_zones %}
-                        <div class="plant-detail">🌡️ Zone: {{ plant.hardiness_zones }}</div>
+                        <div class="plant-detail plant-metadata-hardiness">🌡️ Zone: {{ plant.hardiness_zones }}</div>
                         {% endif %}
                     </div>
 
@@ -663,9 +672,13 @@ HTML_TEMPLATE = '''
                     <input type="hidden" name="bed_col" id="bedCol" required>
                 </div>
                 <div class="form-group">
-                    <label>Plant Name *</label>
+                    <label>Plant *</label>
+                    <input type="text" name="name" id="plantName" required placeholder="e.g., Tomato, Rose, Basil">
+                </div>
+                <div class="form-group">
+                    <label>Plant Variety</label>
                     <div style="display: flex; gap: 10px;">
-                        <input type="text" name="name" id="plantName" required style="flex: 1;">
+                        <input type="text" name="type" id="plantVariety" style="flex: 1;" placeholder="e.g., Cherokee Purple, Knockout">
                         <button type="button" class="btn" onclick="openPlantLookup()" style="width: auto; background: #8b5cf6;">🔍 Lookup</button>
                     </div>
                     <div id="plantSearchResults" style="display: none; margin-top: 10px; max-height: 300px; overflow-y: auto; border: 1px solid #d1d5db; border-radius: 8px; background: white;"></div>
@@ -720,6 +733,37 @@ HTML_TEMPLATE = '''
                     <button type="submit" class="btn btn-submit">Save Plant</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>⚙️ Display Settings</h2>
+            <p style="color: #6b7280; margin-bottom: 20px;">Choose which plant metadata to display on plant cards</p>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; cursor: pointer;">
+                    <input type="checkbox" id="showScientificName" onchange="saveDisplaySettings()" style="width: 18px; height: 18px;">
+                    <span>🔬 Scientific Name</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; cursor: pointer;">
+                    <input type="checkbox" id="showSunlight" onchange="saveDisplaySettings()" style="width: 18px; height: 18px;">
+                    <span>☀️ Sunlight Requirements</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; cursor: pointer;">
+                    <input type="checkbox" id="showCycle" onchange="saveDisplaySettings()" style="width: 18px; height: 18px;">
+                    <span>🔄 Growth Cycle</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: #f9fafb; border-radius: 8px; cursor: pointer;">
+                    <input type="checkbox" id="showHardinessZones" onchange="saveDisplaySettings()" style="width: 18px; height: 18px;">
+                    <span>🌡️ Hardiness Zones</span>
+                </label>
+            </div>
+
+            <div class="form-actions" style="margin-top: 20px;">
+                <button type="button" class="btn btn-cancel" onclick="closeSettingsModal()">Close</button>
+            </div>
         </div>
     </div>
 
@@ -1061,8 +1105,11 @@ HTML_TEMPLATE = '''
         // Plant lookup functionality
         async function openPlantLookup() {
             const plantName = document.getElementById('plantName').value;
-            if (!plantName) {
-                alert('Please enter a plant name first');
+            const plantVariety = document.getElementById('plantVariety').value;
+            const searchTerm = plantVariety || plantName;
+
+            if (!searchTerm) {
+                alert('Please enter a plant name or variety first');
                 return;
             }
 
@@ -1071,7 +1118,7 @@ HTML_TEMPLATE = '''
             resultsDiv.style.display = 'block';
 
             try {
-                const response = await fetch(`/api/plants/search?q=${encodeURIComponent(plantName)}`);
+                const response = await fetch(`/api/plants/search?q=${encodeURIComponent(searchTerm)}`);
                 const data = await response.json();
 
                 if (data.error) {
@@ -1085,7 +1132,7 @@ HTML_TEMPLATE = '''
                 }
 
                 resultsDiv.innerHTML = data.results.map(plant => `
-                    <div class="plant-search-result" onclick="selectPlant(${plant.id})" style="padding: 12px; border-bottom: 1px solid #e5e7eb; cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                    <div class="plant-search-result" onclick='selectPlant(${plant.id}, ${JSON.stringify(plant.common_name)})' style="padding: 12px; border-bottom: 1px solid #e5e7eb; cursor: pointer; display: flex; align-items: center; gap: 12px;">
                         ${plant.image ? `<img src="${plant.image}" style="width: 50px; height: 50px; border-radius: 8px; object-fit: cover;">` : '<div style="width: 50px; height: 50px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center;">🌱</div>'}
                         <div style="flex: 1;">
                             <div style="font-weight: 600; color: #16a34a;">${plant.common_name}</div>
@@ -1102,7 +1149,7 @@ HTML_TEMPLATE = '''
             }
         }
 
-        async function selectPlant(perenualId) {
+        async function selectPlant(perenualId, commonName) {
             const resultsDiv = document.getElementById('plantSearchResults');
             resultsDiv.innerHTML = '<div style="padding: 15px; text-align: center;">Loading plant details...</div>';
 
@@ -1115,6 +1162,9 @@ HTML_TEMPLATE = '''
                     resultsDiv.style.display = 'none';
                     return;
                 }
+
+                // Populate the variety field with the common name
+                document.getElementById('plantVariety').value = commonName || '';
 
                 // Populate hidden fields with metadata
                 document.getElementById('scientificName').value = details.scientific_name || '';
@@ -1140,11 +1190,79 @@ HTML_TEMPLATE = '''
             }
         }
 
+        // Settings functionality
+        function loadDisplaySettings() {
+            const settings = JSON.parse(localStorage.getItem('plantDisplaySettings') || '{"showScientificName":true,"showSunlight":true,"showCycle":true,"showHardinessZones":true}');
+
+            document.getElementById('showScientificName').checked = settings.showScientificName;
+            document.getElementById('showSunlight').checked = settings.showSunlight;
+            document.getElementById('showCycle').checked = settings.showCycle;
+            document.getElementById('showHardinessZones').checked = settings.showHardinessZones;
+
+            return settings;
+        }
+
+        function saveDisplaySettings() {
+            const settings = {
+                showScientificName: document.getElementById('showScientificName').checked,
+                showSunlight: document.getElementById('showSunlight').checked,
+                showCycle: document.getElementById('showCycle').checked,
+                showHardinessZones: document.getElementById('showHardinessZones').checked
+            };
+            localStorage.setItem('plantDisplaySettings', JSON.stringify(settings));
+
+            // Reload page to apply new settings
+            window.location.reload();
+        }
+
+        function openSettingsModal() {
+            loadDisplaySettings();
+            document.getElementById('settingsModal').style.display = 'block';
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        // Load settings on page load and apply them
+        const displaySettings = loadDisplaySettings();
+
+        // Apply display settings to plant cards
+        function applyDisplaySettings() {
+            const settings = loadDisplaySettings();
+
+            // Toggle scientific name
+            document.querySelectorAll('.plant-metadata-scientific-name').forEach(el => {
+                el.classList.toggle('hidden', !settings.showScientificName);
+            });
+
+            // Toggle sunlight
+            document.querySelectorAll('.plant-metadata-sunlight').forEach(el => {
+                el.classList.toggle('hidden', !settings.showSunlight);
+            });
+
+            // Toggle cycle
+            document.querySelectorAll('.plant-metadata-cycle').forEach(el => {
+                el.classList.toggle('hidden', !settings.showCycle);
+            });
+
+            // Toggle hardiness zones
+            document.querySelectorAll('.plant-metadata-hardiness').forEach(el => {
+                el.classList.toggle('hidden', !settings.showHardinessZones);
+            });
+        }
+
+        // Apply settings on page load
+        applyDisplaySettings();
+
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('addPlantModal');
-            if (event.target == modal) {
+            const addModal = document.getElementById('addPlantModal');
+            const settingsModal = document.getElementById('settingsModal');
+            if (event.target == addModal) {
                 closeModal();
+            } else if (event.target == settingsModal) {
+                closeSettingsModal();
             }
         }
     </script>
