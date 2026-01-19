@@ -783,7 +783,7 @@ HTML_TEMPLATE = '''
                     const bedNum = row * 3 + col + 1;
                     const option = document.createElement('div');
                     option.className = 'bed-option';
-                    option.innerHTML = `<strong>Bed ${bedNum}</strong><br><span class="bed-option-label">R${row + 1}C${col + 1}</span>`;
+                    option.innerHTML = `<strong>Bed ${bedNum}</strong>`;
                     option.onclick = () => selectBed(row, col, option);
                     selector.appendChild(option);
                 }
